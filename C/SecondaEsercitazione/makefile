@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS=-Wall -std=c11
 
-all: padreFigliMultipli padreFigliConSalvataggioPID padreFigliConConteggioOccorrenze provaExec mylsConFork1 myGrepConFork-ridStError myGrepConFork-ridStErrorEInput mycat myCatConFork
+all: padreFigliMultipli padreFigliConSalvataggioPID padreFigliConConteggioOccorrenze provaExec mylsConFork1 myGrepConFork-ridStError myGrepConFork-ridStErrorEInput mycat myCatConFork padreFigliNipotiConExec
 
 padreFigliMultipli: padreFigliMultipli.c
 	$(CC) $(CFLAGS) -o padreFigliMultipli padreFigliMultipli.c
@@ -29,3 +29,6 @@ mycat: mycat.c
 
 myCatConFork: myCatConFork.c
 	$(CC) $(CFLAGS) -o myCatConFork myCatConFork.c
+
+padreFigliNipotiConExec: padreFigliNipotiConExec.c
+	$(CC) $(CFLAGS) -o padreFigliNipotiConExec padreFigliNipotiConExec.c
