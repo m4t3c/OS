@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 		printf("Errore nel passaggio dei parametri: %s non e' un singolo carattere\n", argv[argc - 1]);
 		exit(2);
 	}
-	Cx = argv[argc - 1];
+	Cx = *argv[argc - 1];
 
 	for(n = 0; n < N; ++n)	/* Inizializzo un for per creare N processi filgi */
 	{
@@ -39,7 +39,7 @@ int main(int argc, char **argv)
 		}
 		if(pid == 0)
 		{
-			if((f = open(argv[n + 1])) < 0)
+			if((f = open(argv[n + 1], O_RDONLY)) < 0)
 			{
 				printf("Errore: %s non e' un file o non e' apribile\n", argv[n + 1]);
 				exit(-1);
