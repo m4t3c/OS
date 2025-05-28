@@ -41,7 +41,7 @@ int main(int argc, char **argv)
     char chControllo;               /* Variabile che contiene il segnale da parte del padre se bisogna scrivere o meno*/
     int pidFiglio, ritorno, status; /* Per wait */
     /*-------------------------------*/
-
+    
     /* Controllo che siano passati almeno 3 parametri */
     if (argc < 4)
     {
@@ -92,7 +92,7 @@ int main(int argc, char **argv)
             exit(5);
         }
 
-        if ((pipe_pf[i]) < 0)
+        if (pipe(pipe_pf[i]) < 0)
         {
             printf("Errore nella creazione della pipe di comunicazione tra padre e figlio di indice i = %d\n", i);
             exit(6);
@@ -112,7 +112,7 @@ int main(int argc, char **argv)
         {
             /* Processo figlio */
             /* Chiudo tutti i lati delle pipe che non mi servono */
-            for (j = 0; i < N; i++)
+            for (j = 0; j < N; j++)
             {
                 close(pipe_fp[j][0]);
                 close(pipe_pf[j][1]);
@@ -155,13 +155,11 @@ int main(int argc, char **argv)
 
                     if (chControllo == 'S')
                     {
-                        printf("Il figlio di indice %d e pid %d ha trovato un'occorrenza del carattere '%c' nel file %s in poszione %ld\n", i, pid, Cx, argv[i + 2], posizione);
+                        printf("Il figlio di indice %d e pid %d ha trovato un'occorrenza del carattere '%c' nel file %s in poszione %ld\n", i, getpid(), Cx, argv[i + 2], posizione);
                     }
                 }
+                posizione++;
             }
-
-            posizione++;
-
             exit(occorrenze);
         }
     }
@@ -224,7 +222,7 @@ int main(int argc, char **argv)
             printf("Errore nella wait\n");
             exit(8);
         }
-        else if ((status & 0xFF) != 0)
+        if ((status & 0xFF) != 0)
         {
             printf("Il processo figlio con PID: %d e' terminato in modo anomalo\n", pidFiglio);
         }
@@ -234,6 +232,5 @@ int main(int argc, char **argv)
             printf("Il processo figlio con PID: %d e' ritornato %d (se 255 problemi)\n", pidFiglio, ritorno);
         }
     }
-
     exit(0);
 }
