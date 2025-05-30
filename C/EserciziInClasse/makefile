@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS =-Wall -std=c11
 
-all: 5Giu15Semplificato 5Giu15 12Feb16 12Lug17 11Lug18
+all: 5Giu15Semplificato 5Giu15 12Feb16 12Lug17 11Lug18 17Feb17 19Gen22
 
 5Giu15Semplificato: 5Giu15Semplificato.c
 	$(CC) $(CFLAGS) -o 5Giu15Semplificato 5Giu15Semplificato.c
@@ -17,3 +17,9 @@ all: 5Giu15Semplificato 5Giu15 12Feb16 12Lug17 11Lug18
 
 11Lug18: 11Lug18.c
 	$(CC) $(CFLAGS) -o 11Lug18 11Lug18.c
+
+17Feb17: 17Feb17.c
+	$(CC) $(CFLAGS) -o 17Feb17 17Feb17.c
+
+19Gen22: 19Gen22.c
+	$(CC) $(CFLAGS) -o 19Gen22 19Gen22.c
