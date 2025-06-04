@@ -1,0 +1,17 @@
+26Mag17 -> Comunicazione tra figli, Struct
+
+30Mag24 -> parametri fissi, file da creare, processo nipote, uso del ps, uso del grep
+
+1Giu23 -> Processo nipote, uso di rev, struct, conteggio linee, trasformazione di linea in stringa
+
+8Giu22 -> Lunghezza fissata, processo nipote, comunicazione tra processi figli, uso comando diff
+
+9Giu21 -> Creazione di un file in tmp, processo filgio speciale, uso del wc
+
+10Giu20 -> Creazione file nella directory corrente, comunicazione padre figlio
+
+1Giu18 -> Controllo valore ultimo parametro, richiesta dato all'utente (sscanf), stampa per indicare non esistenza di qualcosa
+
+8Giu16 -> Ultimo parametro numero, uso mia_random, Comunicazione concorrenziale padre figlio
+
+12Giu24 -> Figli doppi, creazione di file, comunicazione tra processi figli
