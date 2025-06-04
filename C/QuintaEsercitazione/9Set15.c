@@ -233,7 +233,6 @@ int main(int argc, char **argv)
                         printf("Il figlio con PID: %d e di indice %d ha ritornato il valore %d. Quindi il file %s e' uguale al file %s\n", pidFiglio, j, ritorno, argv[j + 1], argv[argc - 1]);
                     }
                 }
-                
             }
         }
     }
