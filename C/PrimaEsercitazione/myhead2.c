@@ -1,51 +1,66 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 
-int main(int argc, char **argv)
-{
-	int n;														//Variabile per salvare il numero di righe chieste dall'utente
-	int i = 1;													//Counter delle righe
-	char c;														//Buffer dei caratteri
+int main(int argc, char **argv) {
+    
+    /* ------ Variabili Locali ------ */
+    int n;              /* Numero di linee da scrivere su standard output */
+    int i;              /* Indice per il conteggio delle linee */
+    char c;             /* Singolo carattere letto */
+    /* ------------------------------ */
 
-	if(argc > 2)													//Controllo che sia passato un solo parametro
-	{
-		printf("Errore nel numero dei parametri: ho bisogno di massimo un parametro ma argc = %d\n", argc);
-		exit(1);
-	}
-	
-	if(argc == 2)
-	{
-		if(argv[1][0] != '-')
-		{
-			printf("Errore nel passaggio dei parametri: non hai passato un'opzione del comando head\n");		//Controllo che il parametro sia un'opzione
-			exit(2);
-		}	
-	
-		if((n = atoi(&argv[1][1])) < 0)											//Controllo che il numero passato sia strettamente maggiore di 0
-		{	
-			printf("Errore nel passaggio dei parametri: %d non e' strettamente positivo\n", n);
-			exit(3);
-		}
-	}
-	else
-	{
-		n = 10;
-	}	
+    /* Controllo che sia passato massimo un parametro */
+    if (argc > 2)
+    {
+        printf("Errore nel numero dei parametri: ho bisogno di massimo un parametro ma argc = %d\n", argc);
+        exit(1);
+    }
+    
+    /* Nel caso in cui sia passato un parametro faccio i controlli su di esso in caso contrario inizializzo n a 10 */
+    if (argc == 2)
+    {
+        /* Controllo che il parametro passato inizi con il carattere - */
+        if (argv[1][0] != '-')
+        {
+            printf("Errore nel passaggio del parametro: %s non è stato passato nel formato giusto del tipo -n\n", argv[1]);
+            exit(2);
+        }
+        
+        /* Controllo che sia passato un numero intero strettamente positivo */
+        if ((n = atoi(&(argv[1][1]))) <= 0)
+        {
+            printf("Errore nel passaggio del parametro: l'opzione non è corretta poichè n = %d\n", n);
+            exit(3);
+        }
+    } else {
+        n = 10;
+    }
+    
+    /* Inizializzo ad uno i che sta ad indicare che siamo nella prima riga */
+    i = 1;
 
-	while(read(0, &c, 1) == 1)											//Avvio un ciclo che legge da standard input e scrive su standard output
-	{
-		write(1, &c, 1);
-		if(c == '\n')												//Ogni volta che si incontra il carattere a capo aumento il counter
-		{
-			++i;
-			if(i > n)											//Se ho superato il numero di righe si interrompe il ciclo e il programma termina
-			{
-				break;
-			}
-		}
-	}
-	
-	exit(0);
+    /* Itero un ciclo che legge tutti i caratteri da standard input */
+    while (read(0, &c, 1))
+    {
+        /* Controllo se il carattere letto corrisponde a \n in tal caso incremento i */
+        if (c == '\n')
+        {
+            i++;
+        }
+        
+        /* Scrivo su standard output ogni carattere letto */
+        write(1, &c, 1);
+
+        /* Se i > n interrompo il ciclo */
+        if (i > n)
+        {
+            break;
+        }
+
+    }
+    
+    exit(0);
 }

@@ -1,54 +1,72 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 
-int main (int argc, char **argv)
-{
-	int F, n;												//Variabili per salvare i parametri
-	char buffer[255];											//Creo un buffer per contenere una linea
-	int j = 0;												//Variabile indice del buffer
-	int trovate = 0;											//Counter delle linee trovate
-	if(argc != 3)												//Controllo che siano passati esattamente 2 parametrri
-	{
-		printf("Errore nel numero dei parametri: ho bisogno di 2 parametri ma argc = %d\n", argc);
-		exit(1);
-	}
-	
-	if((F = open(argv[1], O_RDONLY)) < 0)									//Controllo che il primo parametro sia un file
-	{
-		printf("Errore nel passaggio dei parametri: %s non e' un file\n", argv[1]);
-		exit(2);
-	}
+int main(int argc, char **argv) {
 
-	if((n = atoi(argv[2])) < 0)										//Contorllo che il secondo parametro sia strettamente positivo
-	{
-		printf("Errore nel passaggio dei parametri: %s non e' un numero strettamente positivo\n", argv[2]);
-		exit(3);
-	}
-	
-	while(read(F, &buffer[j], 1))										//Avvio un ciclo che legge carattere per carattere il file F
-	{
-		if(buffer[j] == '\n')										//Sono arrivato ad una papabile riga
-		{
-			if(n == j + 1)										//Controllo che la riga abbia n caratteri
-			{
-				buffer[j + 1] = '\0';
-				printf("%s\n", buffer);
-				trovate++;
-			}
-			j = 0;
-		}
-		else
-		{
-			++j;
-		}
-	}
-	
-	if(trovate == 0)
-	{
-		printf("Non esiste nessuna riga lunga %d caratteri\n", n);
-	}
-	
-	exit(0);
+    /* ------ Variabili Locali ------ */
+    int fd;                 /* Per la open */
+    int n;                  /* Secondo parametro passato */
+    int i;                  /* Numero di linee trovate che sono lunghe n caratteri */
+    int j;                  /* Indice per la read */
+    char buffer[255];       /* Buffer per la read */
+    /* ------------------------------ */
+
+    /* Controllo che siano passati esattamente 2 parametri */
+    if (argc != 3)
+    {
+        printf("Errore nel numero di parametri: ho bisogno di esattamente 2 parametri ma argc = %d\n", argc);
+        exit(1);
+    }
+
+    /* Controllo che il primo parametro sia un file apribile in lettura */
+    if ((fd = open(argv[1], O_RDONLY)) < 0)
+    {
+        printf("Errore nel passaggio dei parametri: %s non è un file o non è apribile in lettura\n", argv[1]);
+        exit(2);
+    }
+
+    /* Controllo che il secondo parametro sia un intero strettamente positivo */
+    if ((n = atoi(argv[2])) <= 0)
+    {
+        printf("Errore nel passaggio dei parametri: %s non è un intero strettamente positivo\n", argv[2]);
+        exit(3);
+    }
+    
+    /* Inizializzo i e j a 0 */
+    i = 0;
+    j = 0;
+    
+    /* Itero un ciclo che termina una volta terminata la lettura di tutto il file */
+    while ((read(fd, &buffer[j], 1)) != 0)
+    {
+        /* Controllo se sono arrivato alla fine della linea corrente */
+        if (buffer[j] == '\n')
+        {
+            /* Controllo se la linea ha n - 1 caratteri */
+            if (j == n - 1)
+            {
+                /* Aggiungo il terminatore alla linea letta */
+                buffer[j + 1] = 0;
+                
+                /* Incremento il numero di linee trovate e stampo su standard output */
+                i++;
+                printf("Linea trovata numero %d: %s", i, buffer);
+            }
+            j = 0;
+        } else {
+            j++;
+        }
+    
+    }
+    
+    /* Se i = 0 vuol dire che non sono state trovate linee lunghe n - 1 caratteri */
+    if (i == 0)
+    {
+        printf("Nessuna linea nel file %s è lungha %d caratteri (compreso il terminatore)\n", argv[1], n);
+    }
+    
+    exit(0);
 }

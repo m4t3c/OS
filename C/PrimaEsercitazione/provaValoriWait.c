@@ -8,7 +8,7 @@ int main ()
 {
      int pid; 				/* pid per fork */
      int pidFiglio, status, ritorno;    /* per wait padre */
-     int valore;
+     int valore;            /* Valore letto con la scanf */
 
 	if ((pid = fork()) < 0)
 	{ 	/* fork fallita */
@@ -18,18 +18,16 @@ int main ()
 
 	if (pid == 0)
 	{ 	/* figlio */
-		printf("Esecuzione del figlio con PID = %d\n", getpid());
+		printf("Dammi un valore intero con cui provare la exit:\n");
 		scanf("%d", &valore);
-		if(valore > 255 || valore < 0)
-		{
-			printf("Il valore sara' troncato\n");
-			exit(-1);
-		}
-		else
-		{
-			printf("Il valore non sara' troncato\n");
-			exit(valore);					/* si torna un valore derivante dall'esecuzione del processo figlio */
-		}
+        if ((valore < 0) || (valore > 255))
+        {
+            printf("Attenzione: il valore sarà troncato\n");
+        } else {
+            printf("Il valore non sarà troncato\n");
+        }
+        
+		exit(valore);	/* si torna il valore letto */
 	}
 
 	/* padre */

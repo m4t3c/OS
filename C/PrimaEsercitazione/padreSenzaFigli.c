@@ -1,54 +1,30 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 
-int mia_random(int n) 
-{ 
-	int casuale; 
-	casuale = rand() % n; 
-	return casuale; 
-}
+int main() {
 
-int main()
-{
-	int pidfiglio, status, ritorno;					//Variabili da usare per il controllo della wait
+    /* ------ Variabili Locali ------ */
+    int pidFiglio, status, ritorno;          /* Per la wait */
+    /* ------------------------------ */
 
-	printf("PID del processo padre: %d\n", getpid());
-	srand(time(NULL));
+    printf("Sono il processo padre e ho PID: %d\n", getpid());
 
-	/*if((pid = fork()) < 0)
-	{
-		printf("Errore nella fork\n");
-		exit(1);
-	}
-	if(pid == 0)
-	{
-		processo figlio
-		printf("PID del processo: %d\nPPID del processo padre: %d\n", getpid(), getppid());
-		rand = mia_random(100);
-		return(rand);
-	}
-	*/
-
-	/* processo padre */
-	if((pidfiglio = wait(&status)) < 0)
-	{
-		printf("Errore: si e' verificato un errore nella wait\n");
-		exit(2);
-	}
-
-	if((status & 0xFF) != 0)					//Il bit alto deve essere 0
-	{
-		printf("Figlio con pid %d terminato in modo anomalo\n", pidfiglio);
-	}
-	else
-	{
-		ritorno = (int)((status >> 8) & 0xFF);
-		printf("Il figlio con PID = %d ha ritornato %d (Se 255 o 0 problemi!)\n", pidfiglio, ritorno);
-	}
-
-	exit(0);
+    /* Il padre aspetta il filgio */
+    if ((pidFiglio = wait(&status)) != 0)
+    {
+        printf("Errore nella wait\n");
+        exit(1);
+    }
+    if ((status & 0xFF) != 0)
+    {
+        printf("Processo figlio con PID: %d terminato in modo anomalo\n", pidFiglio);
+    } else {
+        ritorno = (int)((status >> 8) & 0xFF);
+        printf("Processo figlio con PID: %d ha ritornato %d\n", pidFiglio, ritorno);
+    }
+    
+    exit(0);
 }
