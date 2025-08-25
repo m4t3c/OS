@@ -1,63 +1,74 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 
-int main(int argc, char **argv)
-{
-	int N;		/* Numero dei figli */
-	int pid;	/* pid per fork */
-	int n;		/* indice per i figli */
-	int pidFiglio, status, ritorno;		/* per wait e valore di ritorno filgi */
-	
-	if(argc != 2)	/* Controllo che sia passato un solo parametro */
-	{
-		printf("Errore nel numero dei parametri: ho bisogno di un parametro ma argc = %d\n", argc);
-		exit(1);
-	}
+int main(int argc, char **argv) {
 
-	if((N = atoi(argv[1])) <= 0 || N >= 255)	/* Controllo che il parametro sia positivo e che sia minore di 255 */
-	{
-		printf("Errore nel passaggio dei parametri: %s non e' strettamente positivo o non e' minore di 255\n", argv[1]);
-		exit(2);
-	}
+    /* ------ Variabili Locali ------ */
+    int N;                              /* Numero di figli */
+    int pid;                            /* Per fork */
+    int n;                              /* Indice per i figli */
+    int pidFiglio, status, ritorno;     /* Per wait */
+    /* ------------------------------ */
 
-	printf("PID del processo padre: %d\nNumero passato: %d\n", getpid(), N);	/* Stampo il pid del padre e il numero passato */
-	
-	for(n = 0; n < N; ++n)		/* Creo un ciclo for per creare tutti i processi figli */
-	{
-		if((pid = fork()) < 0)
-		{
-			printf("Errore nella fork\n");
-			exit(3);
-		}	
-		if (pid == 0)
-		{
-			printf("PID del processo figlio numero %d: %d\n", n + 1, getpid());
-			exit(n);
-		}
-	}
-	
-	for(n = 0; n < N; ++n)	/* Creo un ciclo for per la wait */
-	{
-		pidFiglio = wait(&status);
-		if(pidFiglio < 0)
-		{
-			printf("Errore: si e' verificato un errore nella wait\n");
-			exit(4);
-		}
+    /* Controllo che sia passato esattamente un parametro */
+    if (argc != 2)
+    {
+        printf("Errore nel numero dei parametri: ho bisogno di esattamente 1 parametro ma argc = %d\n", argc);
+        exit(1);
+    }
+    
+    /* Controllo che il parametro passato sia un intero strettamente positivo */
+    if ((N = atoi(argv[1])) <= 0)
+    {
+        printf("Errore nel passaggio dei parametri: %s non è un intero strettamente positivo\n", argv[1]);
+        exit(2);
+    }
 
-		if((status & 0xFF) != 0)
-		{
-			printf("Figlio con PID %d terminato in modo anomalo\n", pidFiglio);
-			exit(5);
-		}
-		else
-		{
-			ritorno = (int)((status >> 8) & 0xFF);
-			printf("Il figlio con pid %d ha ritornato il valore %d (se 255 o 0 problemi)\n", pidFiglio, ritorno);
-		}
-	}
-	exit (0);
+    /* Stampo il pid del processo podre e il numero di figli da creare */
+    printf("Il processo padre con PID: %d creerà %d processi figli\n", getpid(), N);
+
+    /* Itero un ciclo che crei gli N processi figli */
+    for (n = 0; n < N; n++)
+    {
+        /* Controllo che la fork vada a buon fine */
+        if ((pid = fork()) < 0)
+        {
+            printf("Errore nella fork del processo figlio di indice n = %d\n", n);
+            exit(3);
+        }
+        if (pid == 0) 
+        {
+            /* Processo figlio */
+            printf("Sono il processo figlio di indice %d e ho PID: %d\n", n, getpid());
+
+            exit(n);
+        }
+        
+    }
+    
+    /* Processo padre */
+    /* Il padre aspetta i figli */
+    for (n = 0; n < N; n++)
+    {
+        /* Controllo che la wait vada a buon fine */
+        if ((pidFiglio = wait(&status)) < 0)
+        {
+            printf("Errore nella wait\n");
+            exit(4);
+        }
+        if ((status & 0xFF) != 0)
+        {
+            printf("Processo figlio con PID: %d terminato in modo anomalo\n", pidFiglio);
+        }
+        else
+        {
+            ritorno = (int)((status >> 8) & 0xFF);
+            printf("Il processo figlio con PID: %d ha ritornato %d\n", pidFiglio, ritorno);
+        }
+    }
+    
+    exit(0);
 }
