@@ -1,5 +1,5 @@
-CC = gcc
-CFLAGS =-Wall -std=c11
+CC=gcc
+CFLAGS=-Wall -std=c11
 
 all: append1 creaPipe-bis provaPipe-SenzaClose provaPipe-Generico1 provaPipe-Generico2 provaEsame1 provaEsame2-a provaEsame2-b
 
@@ -13,7 +13,7 @@ provaPipe-SenzaClose: provaPipe-SenzaClose.c
 	$(CC) $(CFLAGS) -o provaPipe-SenzaClose provaPipe-SenzaClose.c
 
 provaPipe-Generico1: provaPipe-Generico1.c
-	gcc -Wall -std-c11 -o provaPipe-Generico1 provaPipe-Generico1.c
+	$(CC) $(CFLAGS) -o provaPipe-Generico1 provaPipe-Generico1.c
 
 provaPipe-Generico2: provaPipe-Generico2.c
 	$(CC) $(CFLAGS) -o provaPipe-Generico2 provaPipe-Generico2.c
