@@ -1,5 +1,5 @@
-CC = gcc
-CFLAGS = -Wall
+CC=gcc
+CFLAGS=-Wall
 
 all: 12Set18 9Set15 13Lug22
 
@@ -9,5 +9,5 @@ all: 12Set18 9Set15 13Lug22
 9Set15: 9Set15.c
 	$(CC) $(CFLAGS) -o 9Set15 9Set15.c
 
-13Lug22: 13Lug22.c
+13Lug22: 13Lug22.c 
 	$(CC) $(CFLAGS) -o 13Lug22 13Lug22.c

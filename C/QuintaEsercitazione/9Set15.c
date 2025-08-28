@@ -7,7 +7,7 @@
 #include <string.h>
 #include <fcntl.h>
 
-/* Definisco il tipo pipe_t come array di 2 int */
+/* definizione del TIPO pipe_t come array di 2 interi */
 typedef int pipe_t[2];
 
 void handler(int signo)
@@ -19,85 +19,79 @@ int main(int argc, char **argv)
 {
 
     /* ------ Variabili locali ------ */
-    int N;                              /* Numero di file passati per i processi figli */
-    int *pid;                           /* Array di pid per la fork */
-    int *confronto;                     /* Array per il confronto che stabilisce se continuare o meno il processo */
-    pipe_t *pipe_pf;                    /* Array di pipe di comunicazione padre figlio */
-    pipe_t *pipe_fp;                    /* Array di Pipe di comunicazione figlio padre */
-    int i, j;                           /* Indici per i cicli */
-    int fd;                             /* File descriptor per il file */
-    char token = 'v';                   /* Variabile che contiene il carattere inviato dalla pipe padre-figlio */
-    char c;                             /* Variabile che contiene il carattere letto da file nel processo figlio */
-    char ch;                            /* Variabile che contiene il carattere letto da file nel processo padre */
-    int  pidFiglio, status, ritorno;    /* Per wait */
+    int N;                          /* Numero di parametri passati */
+    int fd;                         /* Per open */
+    int *pid;                       /* Array di pid */
+    int *confronto;                 /* Array per sapere se mandare l'indicazione v o t ai processi figli */
+    pipe_t *pipes_pf;               /* Array di pipe di comunicazione tra padre e figlio */
+    pipe_t *pipes_fp;               /* Array di pipe di comunicazione tra figlio e nipote */
+    int i, j;                       /* Indici per i cicli */
+    char c, ch;                     /* Caratteri letti da file e da pipe */
+    char token = 'v';               /* Carattere da inviare ai figli per dirgli di terminare o continuare */
+    int pidFiglio, status, ritorno; /* Per wait */
     /* ------------------------------ */
-    
+
     /* Controllo che siano passati almeno 3 parametri */
     if (argc < 4)
     {
-        printf("Errore nel numero dei parametri: ho bisogno di almeno tre parametri (nomi di file) ma argc = %d\n", argc);
+        printf("Errore nel passaggio dei parametri: ho bisogno di almeno 3 parametri ma argc = %d\n", argc);
         exit(1);
     }
 
-    /* Assegno ad N il numero di parametri passati escluso l'ultimo */
+    /* Salvo il numero di parametri nella variabile N */
     N = argc - 2;
 
-    /* Installo il gestore handler per il segnale SIGPIPE */
+    /* il padre installa il gestore handler per il segnale SIGPIPE */
     signal(SIGPIPE, handler);
 
     /* Alloco memoria per l'array di pid */
-    pid = (int *)malloc(N * sizeof(int));
-    /* Controllo che l'allocazione sia andata a buon fine */
-    if (pid == NULL)
+    if ((pid = (int *)malloc(N * sizeof(int))) == NULL)
     {
-        printf("Errore nalla malloc dell'array di pid\n");
+        printf("Errore nella malloc per l'array di pid\n");
         exit(2);
     }
 
     /* Alloco memoria per l'array confronto */
-    confronto = (int *)malloc(N * sizeof(int));
-    /* Controllo che l'allocazione sia andata a buon fine */
-    if (confronto == NULL)
+    if ((confronto = (int *)malloc(N * sizeof(int))) == NULL)
     {
-        printf("Errore nella malloc dell'array confronto\n");
+        printf("Errore nella malloc per l'array del confronto\n");
         exit(3);
     }
 
-    /* Setto l'array di confronto ad 1 */
+    /* Inizializzo il vettore confronto con tutti 1 */
     for (i = 0; i < N; i++)
     {
         confronto[i] = 1;
     }
 
-    /* Alloco memoria per l'array di pipe padre figlio */
-    pipe_pf = (pipe_t *)malloc(N * sizeof(pipe_t));
-    /* Controllo che la sua allocazione sia andata a buon fine */
-    if (pipe_pf == NULL)
+    /* Alloco memoria per l'array di pipe tra padre e figlio */
+    if ((pipes_pf = (pipe_t *)malloc(N * sizeof(pipe_t))) == NULL)
     {
-        printf("Errore nell'allocazione dell'array di pipe padre-figlio\n");
+        printf("Errore nella malloc per l'array di pid tra padre e filgio\n");
         exit(4);
     }
-    /*Alloco memoria cper l'array di pipe figlio padre */
-    pipe_fp = (pipe_t *)malloc(N * sizeof(pipe_t));
-    /* Controllo che la sua allocazione sia andata a buon fine */
-    if (pipe_fp == NULL)
+
+    /* Alloco memoria per l'array di pipe tra figlio e padre */
+    if ((pipes_fp = (pipe_t *)malloc(N * sizeof(pipe_t))) == NULL)
     {
-        printf("Errore nell'allocazione dell'array di pipe figlio-padre\n");
+        printf("Errore nella malloc per l'array di pid tra figlio e padre\n");
         exit(5);
     }
 
-    /* Creo le pipe padre figlio e figlio padre */
+    /* Creo le pipe tra padre e figlio e tra figlio e padre */
     for (i = 0; i < N; i++)
     {
-        if (pipe(pipe_pf[i]) < 0)
+        /* Controllo che l'iesima pipe tra padre e figlio sia creata correttamente */
+        if ((pipe(pipes_pf[i])) < 0)
         {
-            printf("Errore nella creazione della pipe padre-figlio di indice i = %d\n", i);
+            printf("Errore nella creazione della pipe tra padre e figlio di indice i = %d\n", i);
             exit(6);
         }
 
-        if (pipe(pipe_fp[i]) < 0)
+        /* Controllo che l'iesima pipe tra figlio e padre sia creata correttamente */
+        if ((pipe(pipes_fp[i])) < 0)
         {
-            printf("Errore nella creazione della pipe figlio-padre di indice i = %d\n", i);
+            printf("Errore nella creazione della pipe tra figlio e padre di indice i = %d\n", i);
             exit(7);
         }
     }
@@ -105,79 +99,83 @@ int main(int argc, char **argv)
     /* Creo gli N processi figli */
     for (i = 0; i < N; i++)
     {
-        /* Controllo che la fork abbia successo */
+        /* Controllo che l'iesimo processo figlio sia creato correttamente */
         if ((pid[i] = fork()) < 0)
         {
-            printf("Errore nella creazione del figlio di indice i = %d\n", i);
+            printf("Errore nella fork per il processo figlio di indice i = %d\n", i);
             exit(8);
         }
         if (pid[i] == 0)
         {
             /* Processo figlio */
-            /* Si sceglie di ritornare -1 (255 senza segno) per riportare un errore */
-            /* Chiudo tutte le pipe che non mi servono */
+            /* Chiudo le pipe non necessarie */
             for (j = 0; j < N; j++)
             {
-                close(pipe_fp[j][0]);
-                close(pipe_pf[j][1]);
-                if (i != j)
+                close(pipes_fp[j][0]);
+                close(pipes_pf[j][1]);
+                if (j != i)
                 {
-                    close(pipe_fp[j][1]);
-                    close(pipe_pf[j][0]);
+                    close(pipes_fp[j][1]);
+                    close(pipes_pf[j][0]);
                 }
             }
 
-            /* Apro in lettura il file */
+            /* Apro il file in lettura */
             if ((fd = open(argv[i + 1], O_RDONLY)) < 0)
             {
-                printf("Errore nell'apertura in lettura del file %s\n", argv[i + 1]);
+                printf("Errore nella open del file %s\n", argv[i + 1]);
                 exit(-1);
             }
 
-            /* Itero un ciclo finchè posso leggere dalla pipe padre-figlio */
-            while (read(pipe_pf[i][0], &token, 1))
+            /* Itero un ciclo che va avanti finchè riceve dal padre l'ok per proseguire */
+            while (read(pipes_pf[i][0], &token, 1))
             {
-                /* Se il token contiene t allora il processo deve terminare */
+                /* Se il carattere ricevuto è t devo terminare il ciclo */
                 if (token == 't')
                 {
                     break;
                 }
 
+                /* In caso contrario leggo un singolo carattere dal file e lo mando al padre */
                 read(fd, &c, 1);
-                write(pipe_fp[i][1], &c, 1);
+                write(pipes_fp[i][1], &c, 1);
             }
 
             exit(0);
         }
     }
 
-    /* Codice padre */
-    /* Chiudo le pipe */
+    /* Processo padre */
+    /* Chiudo le pipe inutilizzate */
     for (i = 0; i < N; i++)
     {
-        close(pipe_fp[i][1]);
-        close(pipe_pf[i][0]);
+        close(pipes_fp[i][1]);
+        close(pipes_pf[i][0]);
     }
 
-    /* Apro il file in lettura */
+    /* Apro in lettura il file */
     if ((fd = open(argv[argc - 1], O_RDONLY)) < 0)
     {
-        printf("Impossibile aprire in lettura il file %s\n", argv[argc - 1]);
+        printf("Errore nella open del file %s\n", argv[argc - 1]);
         exit(9);
     }
 
-    /* Itero un ciclo che va avanti finchè leggo caratteri */
+    /* Itero un ciclo che legge carattere per carattere il file */
     while (read(fd, &ch, 1))
     {
-        /* Confronto il carattere letto con tutti quelli inviati dai figli */
+        /* Faccio il confronto per ogni figlio che ha ancora attiva la lettura */
         for (i = 0; i < N; i++)
         {
-            /* Nel caso il processo sia ancora attivo controllo se i caratteri siano uguali */
             if (confronto[i])
             {
-                write(pipe_pf[i][1], &token, 1);
-                read(pipe_fp[i][0], &c, 1);
-                if (c != ch)
+                /* Invio al figlio il token */
+                write(pipes_pf[i][1], &token, 1);
+
+                /* Recupero il carattere dalla pipe tra figlio e padre */
+                read(pipes_fp[i][0], &c, 1);
+
+                /* Controllo se il file letto dal padre e letto dal figlio sono uguali */
+                if (ch != c)
                 {
                     confronto[i] = 0;
                 }
@@ -185,29 +183,30 @@ int main(int argc, char **argv)
         }
     }
 
-    /* Itero un ciclo che termina forzatamente i processi che hanno letto un carattere diverso mentre termina quando il file è finito */
+    /* Una volta terminata la lettura da file termino i processi figli */
     for (i = 0; i < N; i++)
     {
+        /* Controllo se l'iesimo figlio ha ancora il confronto attivo o meno */
         if (!confronto[i])
         {
             /* Controllo che la kill non fallisca */
             if ((kill(pid[i], SIGKILL)) == -1)
             {
-                printf("Processo filgio con pid = %d non esiste quindi gia' terminato\n", pid[i]);
+                printf("Figlio con PID: %d non esiste quindi è già terminato\n", pid[i]);
             }
-            
         }
         else
         {
+            /* Inizializzo token a 't' */
             token = 't';
-            write(pipe_pf[i][1], &token, 1);
+            write(pipes_pf[i][1], &token, 1);
         }
     }
 
     /* Il padre aspetta i figli */
     for (i = 0; i < N; i++)
     {
-        /* Controllo che la wait abbia successo */
+        /* Controllo che la wait vada a buon fine */
         if ((pidFiglio = wait(&status)) < 0)
         {
             printf("Errore nella wait\n");
@@ -215,23 +214,22 @@ int main(int argc, char **argv)
         }
         if ((status & 0xFF) != 0)
         {
-            printf("Il figlio con PID: %d e' terminato in modo anomalo\n", pidFiglio);
+            printf("Il processo figlio con PID: %d è terminato in modo anomalo\n", pidFiglio);
         }
         else
         {
             ritorno = (int)((status >> 8) & 0xFF);
             if (ritorno == 255)
             {
-                printf("Il figlio con PID: %d ha ritornato 255 quindi ci sono stati problemi\n", pidFiglio);
+                printf("Il figlio con pid=%d ha ritornato il valore %d e quindi ci sono stati problemi\n", pidFiglio, ritorno);
             }
             else
             {
+                /* se un figlio termina normalmente vuol dire che non e' stato ucciso dal SIGKILL: ATTENZIONE CHE DOBBIAMO RECUPERARE L'INDICE DI CREAZIONE USANDO L'ARRAY DI pid! */
                 for (j = 0; j < N; j++)
                 {
-                    if(pid[j] == pidFiglio)
-                    {
-                        printf("Il figlio con PID: %d e di indice %d ha ritornato il valore %d. Quindi il file %s e' uguale al file %s\n", pidFiglio, j, ritorno, argv[j + 1], argv[argc - 1]);
-                    }
+                    if (pid[j] == pidFiglio)
+                        printf("Il figlio con pid=%d e indice %d ha ritornato il valore %d e quindi ha verificato che il file %s e' uguale al file %s\n", pidFiglio, j, ritorno, argv[j + 1], argv[argc - 1]);
                 }
             }
         }
