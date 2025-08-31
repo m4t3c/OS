@@ -1,15 +1,16 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
-#define PERM 0644
 
-/* Definisco il tipo pipe_t come array di 2 int */
+/* Definisco il tipo pipe_t come array di 2 interi */
 typedef int pipe_t[2];
 
-/* Funzione che calcola un numero casuale compreso tra 0 e n - 1 */
+/* Definisco la funzione mia_random */
+#include <stdlib.h>
 int mia_random(int n)
 {
     int casuale;
@@ -17,190 +18,208 @@ int mia_random(int n)
     return casuale;
 }
 
-int main(int argc, char **argv)
-{
-    /* ------ Variabili locali ------ */
-    int H;                              /* Variabile che rappresenta il numero di righe dei file */
-    int N;                              /* Numero di file passati come parametro */
-    int pid;                            /* Per fork */
-    pipe_t *pipe_pf;                    /* Pipe di comunicazione tra padre e figlio */
-    pipe_t *pipe_fp;                    /* Pipe di comunicazione tra figlio e padre */
-    int fdout;                          /* File descriptor per il file che creiamo */
-    int fd;                             /* File descriptor per la open del file associato al processo */
-    int i, j;                           /* Indici per i cicli */
-    char linea[255];                    /* Buffer che contiene ogni linea letta */
-    int r;                              /* Valore inviato dal padre */
-    int ritorno = 0;                    /* Ogni processo figlio ritorna il numero di caratteri scritti sul file creato */
-    int valore;                         /* Variabile che salva il valore inviato dal filgio al padre */
-    int status;                         /* Per wait */
+int main(int argc, char **argv) {
+
+    /* ------ Variabili Locali ------ */
+    int N;                          /* Numero di file passati come parametro */
+    int H;                          /* Lunghezza in linee dei file */
+    int pid;                        /* Per fork */
+    int fd;                         /* Per open */
+    int Fcreato;                    /* File descriptor file creato */
+    int n, i;                       /* Indici */
+    pipe_t *pipes_pf;               /* Array di pipe tra padre e figlio */
+    pipe_t *pipes_fp;               /* Array di pipe tra figlio e padre */
+    char linea[255];                /* Buffer per la lettura della linea */
+    int valore;                     /* Valore recuperato dal padre che contiene la lunghezza della linea corrente */
+    int giusto;                     /* Valore dell'indice del processo figlio di cui si userà la lunghezza della linea per generare l'indice random */
+    int r;                          /* Indice generato random */
+    int ritorno = 0;                /* Numero di caratteri scritti da ogni processo figlio sul file creato, inizialmente 0 */
+    int pidFiglio, status;          /* Per wait */
     /* ------------------------------ */
 
     /* Controllo che siano passati almeno 5 parametri */
     if (argc < 6)
     {
-        printf("Errore nel numero dei parametri: ho bisogno di almeno 5 parametri (file1, file2, file3, file4, ..., H) ma argc = %d\b", argc);
+        printf("Errore nel numero dei parametri: ho bisogno di almeno 5 parametri ma argc = %d\n", argc);
         exit(1);
     }
     
-    /* Salvo in H l'ultimo parametro passato */
-    H = atoi(argv[argc - 1]);
-    /* Controllo che l'ultimo parametro sia un numero intero strettamente positivo minore di 255 */
-    if ((H < 0) || (H >= 255))
-    {
-        printf("Errore nel passaggio dei parametri: %s non e' un intero strettamente positivo e minore di 255\n", argv[argc - 1]);
-        exit(2);
-    }
-
-    /* Salvo il numero dei file nella variabie N */
+    /* Inizializzo N con il numero di file passati come parametri */
     N = argc - 2;
 
-    /* Inizializzo il seme per la generazione random di numeri */
+    /* Controllo che l'ultimo parametro sia un intero strettamente positivo e minore di 255 */
+    H = atoi(argv[argc - 1]);
+
+    if (H <= 0 || H >= 255)
+    {
+        printf("Errore: %s non è un numero intero strettamente positivo oppure non è strettamente minore di 255\n", argv[argc - 1]);
+        exit(2);
+    }
+    
+    /* Inizializzo il seme per la generazione casuale di numeri */
     srand(time(NULL));
 
-    /* Creo il file /tmp/creato*/
-    if ((fdout = open("/tmp/creato", O_CREAT| O_WRONLY | O_TRUNC, PERM)) < 0)
+    /* Creo/apro il file su /tmp */
+    if ((Fcreato = open("/tmp/creato", O_CREAT | O_WRONLY | O_TRUNC, 0644)) < 0)
     {
-        printf("Errore nella creazione del file %s\n", "/tmp/creato");
+        printf("Errore nella open del file /tmp/creato\n");
         exit(3);
     }
     
-    /* Alloco la memoria per gli array delle due pipe di comunicazione */
-    pipe_pf = (pipe_t*)malloc(N * sizeof(pipe_t));
-    pipe_fp = (pipe_t*)malloc(N * sizeof(pipe_t));
-
-    /* Controllo che l'allocazione di memoria per gli array di pipe sia andata a buon fine */
-    if ((pipe_pf == NULL) || (pipe_fp == NULL))
+    /* Alloco memoria per i due array di pipe */
+    pipes_fp = (pipe_t *) malloc(N * sizeof(pipe_t));
+    pipes_pf = (pipe_t *) malloc(N * sizeof(pipe_t));
+    if ((pipes_fp == NULL) || (pipes_pf == NULL))
     {
         printf("Errore nella malloc per gli array di pipe\n");
         exit(4);
     }
     
     /* Creo le N pipe */
-    for (i = 0; i < N; i++)
+    for (n = 0; n < N; n++)
     {
-        if (pipe(pipe_pf[i]) < 0)
+        /* Controllo che la creazione dell'n-esima pipe tra padre e figlio vada a buon fine */
+        if (pipe(pipes_pf[n]) < 0)
         {
-            printf("Errore nella creazione della pipe di comunicazione tra il processo padre e il processo figlio di indice i = %d\n", i);
+            printf("Errore nella creazione della pipe tra padre e figlio di indice n = %d\n", n);
             exit(5);
         }
         
-        if (pipe(pipe_fp[i]) < 0)
+        /* Controllo che la creazione dell'n-esima pipe tra figlio e padre vada a buon fine */
+        if (pipe(pipes_fp[n]) < 0)
         {
-            printf("Errore nella creazione della pipe di comunicazione tra il processo figlio e il processo padre di indice i = %d\n", i);
+            printf("Errore nella creazione della pipe tra figlio e padre di indice n = %d\n", n);
             exit(6);
-        }        
+        }
+        
     }
     
     /* Creo gli N processi figli */
-    for (i = 0; i < N; i++)
+    for (n = 0; n < N; n++)
     {
         /* Controllo che la fork vada a buon fine */
         if ((pid = fork()) < 0)
         {
-            printf("Errore nella creazione del processo figlio di indice i = %d\n", i);
+            printf("Errore nella creazione del processo figlio di indice n = %d\n", n);
             exit(7);
         }
         if (pid == 0)
         {
             /* Processo figlio */
-            /* Si sceglie di ritornare in caso di errore -1 che corrisponde a 255 senza segno */
-            /* Chiudo tutte le pipe non necessarie per l'i-esimo processo figlio */
-            for (j = 0; j < N; j++)
+            /* Chiudo le pipe che non servono */
+            for (i = 0; i < N; i++)
             {
-                close(pipe_fp[j][0]);
-                close(pipe_pf[j][1]);
-                if (i != j)
+                close(pipes_fp[i][0]);
+                close(pipes_pf[i][1]);
+                if (i != n)
                 {
-                    close(pipe_fp[j][1]);
-                    close(pipe_pf[j][0]);
+                    close(pipes_fp[i][1]);
+                    close(pipes_pf[i][0]);
                 }
+                
             }
             
-            /* Apro in lettura il file associato al processo */
-            if ((fd = open(argv[i + 1], O_RDONLY)) < 0)
+            /* Apro il file associato al processo figlio in lettura */
+            if ((fd = open(argv[n + 1], O_RDONLY)) < 0)
             {
-                printf("Errore nell'apertura in lettura del file %s\n", argv[i + 1]);
+                printf("Errore nella open di %s\n", argv[n + 1]);
                 exit(-1);
             }
             
-            /* Setto a 0 j che fungera' da contatore nel ciclo di lettura da file */
-            j = 0;
+            /* Inizializzo i a 0 */
+            i = 0;
 
-            /* Itero un ciclo che legge carattere per carattere da file */
-            while (read(fd, &linea[j], 1))
+            /* Leggo il file un carattere alla volta riga per riga */
+            while (read(fd, &linea[i], 1))
             {
-                /* Controllo se sono arrivato alla fine di una linea */
-                if (linea[j] == '\n')
+                /* Controllo se sono arrivato alla fine della riga */
+                if (linea[i] == '\n')
                 {
-                    /* Mando al padre la lunghezza della linea corrente compreso il terminatore */
-                    j++;
-                    write(pipe_fp[i][1], &j, sizeof(j));
+                    /* Comunico al padre la lunghezza della riga compreso il terminatore */
+                    i++;
+                    write(pipes_fp[n][1], &i, sizeof(i));
 
-                    /* Leggo il valore inviato dal padre */
-                    read(pipe_pf[i][0], &r, sizeof(r));
-                    if (r < j)
+                    /* Leggo il numero inviato dal padre e lo salvo in r */
+                    read(pipes_pf[n][0], &r, sizeof(r));
+
+                    /* Controllo se l'indice inviato dal padre è contenuto nella linea corrente */
+                    if (r < i)
                     {
-                       write(fdout, &(linea[r]), 1);
-                       ritorno++; 
+                        /* Scrivo il carattere sul file creato */
+                        write(Fcreato, &linea[r], 1);
+                        
+                        /* Incremente il numero di ritorno che indicherà il numero di caratteri scritti sul file da ogni filgio */
+                        ritorno++;
                     }
-                    j = 0;
+                    
+                    i = 0;
                 }
                 else
                 {
-                    j++;
+                    i++;
                 }
             }
-
+            
             exit(ritorno);
         }
+        
     }
     
     /* Processo padre */
-    /* Chiudo tutte le pipe che non mi servono */
-    for (i = 0; i < N; i++)
+    /* Chiudo le pipe non necessarie */
+    for (n = 0; n < N; n++)
     {
-        close(pipe_pf[i][0]);
-        close(pipe_fp[i][1]);   
+        close(pipes_pf[n][0]);
+        close(pipes_fp[n][1]);
     }
     
-    /* Itero un ciclo che mi permette di recuperare le informazioni dai figli per poi inviarle */
-    for (j = 1; j < H; j++)
+    /* Il padre recupera le informazioni dai figli e invia l'indice per tutte le H righe */
+    for (i = 0; i < H; i++)
     {
+        /* Genero l'indice random di cui bisogna salvare la lunghezza della riga corrente */
         r = mia_random(N);
-        for (i = 0; i < N; i++)
+
+        /* Recupero le informazioni da tutti i figli e salvo in giusto solo quello che ha scritto il filgio numero r */
+        for (n = 0; n < N; n++)
         {
-            if (i == r)
+            read(pipes_fp[n][0], &valore, sizeof(valore));
+            
+            /* Controllo se n = r */
+            if (n == r)
             {
-                read(pipe_fp[i][0], &valore, sizeof(valore));
+                giusto = valore;
             }
+            
         }
         
-        /* Calcolo un indice random della riga che mi sono salvato */
-        r = mia_random(valore);
-        /* Invio a tutti i figli l'indice da considerare */
-        for (i = 0; i < N; i++)
+        /* Calcolo l'indice random */
+        r = mia_random(giusto);
+
+        /* Invio a tutti i figli l'indice random */
+        for (n = 0; n < N; n++)
         {
-            write(pipe_pf[i][1], &r, sizeof(r));
+            write(pipes_pf[n][1], &r, sizeof(r));
         }
+        
     }
-    
+
     /* Il padre aspetta i figli */
-    for (i = 0; i < N; i++)
+    for (n = 0; n < N; n++)
     {
-        /* Controllo che la wait abbia successo */
-        if ((pid = wait(&status)) < 0)
+        /* Controllo che la wait vada a buon fine */
+        if ((pidFiglio = wait(&status)) < 0)
         {
             printf("Errore nella wait\n");
             exit(8);
         }
         if ((status & 0xFF) != 0)
         {
-            printf("Processo figlio con PID: %d terminato in modo anomalo\n", pid);
+            printf("Processo figlio con PID: %d ritornato in modo anomalo\n", pidFiglio);
         }
         else
         {
             ritorno = (int)((status >> 8) & 0xFF);
-            printf("Processo figlio con PID: %d ha ritornato %d (se 255 problemi!)\n", pid, ritorno);
+            printf("Il processo figlio con PID: %d ha ritornato %d (se 255 problemi!)\n", pidFiglio, ritorno);
         }
     }
     

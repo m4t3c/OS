@@ -1,186 +1,199 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 
-/* Definisco il tipo pipe_t come array di due int */
+/* Definisco il tipo pipe_t come array di 2 interi */
 typedef int pipe_t[2];
 
 int main(int argc, char **argv)
-{   
+{
+
     /* ------ Variabili locali ------ */
-    int pid;                            /* Per fork */
-    int N;                              /* Numero di file passati nonche' numero di processi figli da creare */
-    char Cx;                            /* Carattere passato come ultimo parametro */
-    pipe_t *pipe_pf;                    /* Pipe di comunicazione tra processo padre e figlio */
-    pipe_t *pipe_fp;                    /* Pipe di comunicazione tra processo figlio e padre */
-    int i, j;                           /* Indici per i cicli */
-    int fd;                             /* File descriptor per la open */
-    char c;                             /* Buffer per il carattere letto da file */
-    char cx;                            /* Carattere letto dalla pipe del padre */
-    char scarto;                        /* Variabile per eliminare l'invio */
-    long int pos;                       /* Posizione del carattere cercato */
-    int ritorno;                        /* Valore di ritorno per processo figlio e wait */
-    int finito;                         /* Variabile di controllo che indica se i processi figli hanno terminato la lettura del file */
-    int nr;                             /* Variabile di controllo per read */
-    int status;                         /* Per wait */
-    /* -------------------------------*/
+    int N;                 /* Numero di file passati come parametro */
+    char Cx;               /* Carattere passato come ultimo parametro */
+    int fd;                /* Per open */
+    int pid;               /* Per fork */
+    long int pos;          /* Posizione da comunicare al padre */
+    pipe_t *pipes_pf;      /* Array di pipe di comunicazione tra padre e figlio */
+    pipe_t *pipes_fp;      /* Array di pipe di comunicazione tra figlio e padre */
+    int n, i;              /* Indici per i cicli */
+    int ritorno = 0;       /* Valore ritornato dal processo figlio (numero di caratteri trasformati) */
+    char c;                /* Singolo carattere letto */
+    char cx;               /* Carattere letto da standard input */
+    char scarto;           /* Variabile usata per eliminare il carattere '\n' letto da standard input */
+    int nr;                /* Variabile che serve al padre per sapere se ha letto qualcosa */
+    int finito;            /* Variabile di controllo */
+    int pidFiglio, status; /* Per wait */
+    /* ------------------------------ */
+
     /* Controllo che siano passati almeno 2 parametri */
     if (argc < 3)
     {
-        printf("Errore nel numero dei parametri: ho bisogno di almeno 2 parametri (nomefile1, ..., carattere) ma argc = %d\n", argc);
+        printf("Errore nel numero dei parametri: ho bisogno di almeno 2 parametri ma argc = %d\n", argc);
         exit(1);
     }
 
+    /* Salvo il numero di file passati come parametro in N */
     N = argc - 2;
 
     /* Controllo che l'ultimo parametro sia un singolo carattere */
     if (strlen(argv[argc - 1]) != 1)
     {
-        printf("Errore nel passaggio dei parametri: %s non e' un singolo crattere\n", argv[argc - 1]);
+        printf("Errore: %s non è un singolo carattere\n", argv[argc - 1]);
         exit(2);
     }
-    /* Salvo l'ultimo parametro nella variabile Cx */
+
+    /* Salvo in Cx l'ultimo parametro */
     Cx = argv[argc - 1][0];
-    
-    /* Alloco memoria per le due pipe tra padre e figlio e figlio padre */
-    pipe_pf = (pipe_t *)malloc(N * sizeof(pipe_t));
-    pipe_fp = (pipe_t *)malloc(N * sizeof(pipe_t));
-    /* Controllo che la malloc sia andata a buon fine */
-    if ((pipe_pf == NULL) || (pipe_fp == NULL))
+
+    /* Alloco memoria per gli array di pipe */
+    pipes_pf = (pipe_t *)malloc(N * sizeof(pipe_t));
+    pipes_fp = (pipe_t *)malloc(N * sizeof(pipe_t));
+
+    /* Controllo che le malloc siano andate a buon fine */
+    if ((pipes_pf == NULL) || (pipes_fp == NULL))
     {
-        printf("Errore nella malloc per le pipe\n");
+        printf("Errore nella malloc\n");
         exit(3);
     }
 
     /* Creo le N pipe */
-    for (i = 0; i < N; i++)
+    for (n = 0; n < N; n++)
     {
-        /* Controllo che la i-esima pipe tra padre e figlio sia creata correttamente */
-        if (pipe(pipe_pf[i]) < 0)
+        if (pipe(pipes_pf[n]) < 0)
         {
-            printf("Errore nella creazione della pipe tra padre e figlio di indice i = %d\n", i);
+            printf("Errore nella creazione della pipe di comunicazione tra padre e figlio\n");
             exit(4);
         }
 
-        /* Controllo che la i-esima pipe tra filgio e padre sia creata correttamente */
-        if (pipe(pipe_fp[i]) < 0)
+        if (pipe(pipes_fp[n]) < 0)
         {
-            printf("Errore nella creazione della pipe tra figlio e padre di indice i = %d\n", i);
+            printf("Errore nella creazione della pipe di comunicazione tra figlio e padre\n");
             exit(5);
         }
     }
-    
-    /* Creo gli N processi figli */
-    for (i = 0; i < N; i++)
+
+    /* Genero gli N processi figli */
+    for (n = 0; n < N; n++)
     {
-        /* Controllo che la fork abbia successo */
+        /* Controllo che la fork vada a buon fine */
         if ((pid = fork()) < 0)
         {
-            printf("Errore nella fork del processo figlio di indice i = %d\n", i);
+            printf("Errore nella fork\n");
             exit(6);
         }
         if (pid == 0)
         {
             /* Processo figlio */
-            /* Si sceglie di ritornare -1 (255 senza segno) per segnalare errore */
-            /* Chiudo le pipe che non servono al processo figlio */
-            for (j = 0; j < N; j++)
+            /* Chiudo le pipe non necessarie */
+            for (i = 0; i < N; i++)
             {
-                close(pipe_fp[j][0]);
-                close(pipe_pf[j][1]);
-                if (j != i)
+                close(pipes_fp[i][0]);
+                close(pipes_pf[i][1]);
+                if (i != n)
                 {
-                    close(pipe_fp[j][1]);
-                    close(pipe_pf[j][0]);
+                    close(pipes_pf[i][0]);
+                    close(pipes_fp[i][1]);
                 }
             }
-            
-            /* Apro in lettura-scrittura il file passato come i+1-esimo parametro */
-            if ((fd = open(argv[i + 1], O_RDWR)) < 0)
+
+            /* Apro il file associato al processo figlio in lettura e scrittura */
+            if ((fd = open(argv[n + 1], O_RDWR)) < 0)
             {
-                printf("Errore nell'apertura del file %s\n", argv[i + 1]);
+                printf("Errore nella open di %s\n", argv[n + 1]);
                 exit(-1);
             }
-            
-            /* Itero un ciclo che legge un carattere alla volta da file */
+
+            /* Itero un ciclo che legge un carattere alla volta il file */
             while (read(fd, &c, 1))
             {
                 /* Controllo se il carattere letto è quello cercato */
                 if (c == Cx)
                 {
+                    /* Torno indietro di una posizione con l'lseek e assegno a pos il valore della posizione del carattere */
                     pos = lseek(fd, 0L, SEEK_CUR);
-                    write(pipe_fp[i][1], &pos, sizeof(pos));
-                    read(pipe_pf[i][0], &cx, 1);
+
+                    /* Invio al padre la posizione */
+                    write(pipes_fp[n][1], &pos, sizeof(pos));
+
+                    /* Leggo il carattere inviato dal padre */
+                    read(pipes_pf[n][0], &cx, 1);
+
+                    /* Controllo che il carattere letto sia diverso da '\n' */
                     if (cx != '\n')
                     {
-                        lseek(fd, -1L, SEEK_CUR);
+                        /* Sostituisco nel file il carattere che è stato inviato dal processo padre */
+                        lseek(fd, -1L, SEEK_SET);
                         write(fd, &cx, 1);
                         ritorno++;
                     }
-                }   
+                }
             }
 
             exit(ritorno);
         }
     }
-    
+
     /* Processo padre */
-    /* Chiudo tutte le pipe che non mi servono */
-    for (i = 0; i < N; i++)
+    /* Chiudo le pipe non necessarie */
+    for (n = 0; n < N; n++)
     {
-        close(pipe_pf[i][0]);
-        close(pipe_fp[i][1]);
+        close(pipes_pf[n][0]);
+        close(pipes_fp[n][1]);
+        
     }
     
+    /* Inizializzo finito a 0 */
     finito = 0;
-    /* Itero un ciclo per recuperare dal figlio le informazioni */
+
+    /* Itero un ciclo che finisce quando finito sarà a 1 */
     while (!finito)
     {
         finito = 1;
-        for (i = 0; i < N; i++)
+        for (n = 0; n < N; n++)
         {
-            /* Leggo la posizione inviata dall'i-esimo figlio */
-            nr = read(pipe_fp[i][0], &pos, sizeof(pos));
-            /* Controllo che sia stato letto qualcosa dalla pipe */
+            nr = read(pipes_fp[n][0], &pos, sizeof(pos));
             if (nr != 0)
             {
                 finito = 0;
-                printf("Il processo figlio di indice i = %d ha trovato il carattere %c nel file %s nella posizione %ld.\nSe vuoi sostituirlo indica il carattere con cui vorresti effettuare la sostituzione\n", i, Cx, argv[i + 1], pos);
+                printf("Il figlio con indice %d ha trovato nel file %s un'occorrenza del carattere %c in posizione %ld\n", n, argv[n + 1], Cx, pos);
+                printf("Inserisci il carattere con cui sostituire l'occorrenza del carattere (non scrivere niente per non sostituire):\n");
                 read(0, &cx, 1);
                 if (cx != '\n')
                 {
-                    /* Eliminiamo il carattere invio */
                     read(0, &scarto, 1);
                 }
                 
-                write(pipe_pf[i][1], &cx, 1);
+                /* Invio al processo figlio il carattere con cui eventualmente sostituire l'occorrenza di Cx */
+                write(pipes_pf[n][1], &cx, 1);
             }
+            
         }
+        
     }
-    
+
     /* Il padre aspetta i figli */
-    for (i = 0; i < N; i++)
+    for (n = 0; n < N; n++)
     {
-        /* Controllo che la wait abbia successo */
-        if ((pid = wait(&status)) < 0)
+        /* Controllo che la wait vada a buon fine */
+        if ((pidFiglio = wait(&status)) < 0)
         {
             printf("Errore nella wait\n");
             exit(7);
         }
         if ((status & 0xFF) != 0)
         {
-            printf("Processo figlio con PID: %d e' terminato in modo anomalo\n", pid);
+            printf("Processo figlio con PID: %d è terminato in modo anomalo\n", pidFiglio);
         }
         else
         {
             ritorno = (int)((status >> 8) & 0xFF);
-            printf("Il processo figlio con PID: %d ha ritornato %d (se 255 problemi!)\n", pid, ritorno);
+            printf("Il processo figlio con PID: %d ha ritornato %d (se 255 problemi!)\n", pidFiglio, ritorno);
         }
     }
     
     exit(0);
-
 }
