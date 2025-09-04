@@ -1,109 +1,116 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 
-typedef int pipe_t[2];              /* Definisco il tipo pipe_t come array di 2 interi */
+/* Definisco il tipo pipe_t come array di 2 pipe */
+typedef int pipe_t[2];
 
 int main(int argc, char **argv)
 {
-    /*----- Variabili locali -----*/
-    int pid;                        /* Per fork */
-    int N;                          /* Numero di parametri passati */
-    int i, j;                       /* Indice dei cicli */
-    int lenght;                     /* Variabile per il processo figlio */  
-    pipe_t *piped;                  /* Array di pipe */
+
+    /* ------ Variabili locali ------ */
+    int M;                          /* Numero di parametri passati */
+    int pid;                        /* Per open */
+    pipe_t *pipes;                  /* Array di pipe di comunicazione */
+    int lunghezza;                  /* Valore ritornato da ogni figlio */
+    int j, k;                       /* Indici */
     int pidFiglio, ritorno, status; /* Per wait */
-    /*----------------------------*/
-    
-    if(argc < 3)                    /* Controllo che il numero di parametri sia corretto */
+    /* ------------------------------ */
+
+    /* Controllo che siano passati almeno 2 parametri */
+    if (argc < 3)
     {
-        printf("Errore nel numero dei parametri: ho bisogno di almeno 2 parametri (nomi assoluti di file) ma argc = %d\n", argc);
+        printf("Errore nel numero dei parametri: ho bisogno di almeno 2 parametri ma argc = %d\n", argc);
         exit(1);
     }
 
-    N = argc - 1;
+    /* Inizializzo M con il numero di parametri passati */
+    M = argc - 1;
 
-    /* Alloco memoria per N pipe */
-    piped = (pipe_t *) malloc(N * sizeof(pipe_t));
-    if(piped == NULL)               /* Controllo che la malloc sia andata a buon fine */
+    /* Alloco memoria per l'array di pipe */
+    if ((pipes = (pipe_t *)malloc(M * sizeof(pipe_t))) == NULL)
     {
-        printf("Errore nella malloc\n");
+        printf("Errore nella malloc per l'array di pipe\n");
         exit(2);
     }
 
-    /* Creo le N pipe */
-    for (i = 0; i < N; i++)
+    /* Itero un ciclo che crea le M pipe */
+    for (j = 0; j < M; j++)
     {
-        if((pipe(piped[i])) < 0)    /* Controllo che la creazione della i-esima pipe sia andata a buon fine */
+        /* Controllo che la creazione della pipe vada a buon fine */
+        if (pipe(pipes[j]) < 0)
         {
-            printf("Errore nella creazione della pipe di indice i = %d\n", i);
+            printf("Errore nella creazione della pipe di indice j = %d\n", j);
             exit(3);
         }
     }
 
-    /* Creo gli N processi figli */
-    for (i = 0; i < N; i++)
+    /* Creo gli M processi figli */
+    for (j = 0; j < M; j++)
     {
-        if((pid = fork()) < 0)      /* Controllo che la fork sia andata a buon fine */
+        /* Controllo che la fork vada a buon fine */
+        if ((pid = fork()) < 0)
         {
-            printf("Errore nella creazione del processo figlio di indice i = %d\n", i);
+            printf("Errore nella fork\n");
             exit(4);
         }
-        if(pid == 0)
+        if (pid == 0)
         {
-            /* Codice del figlio */
-            /* Chiudo tutte le pipe in lato di lettura e quelle che non mi servono in lato di scrittura */
-            for (j = 0; j < N; j++)
+            /* Processo figlio */
+            /* Chiudo le pipe non necessarie */
+            for (k = 0; k < M; k++)
             {
-                close(piped[j][0]);
-                if(i != j)
+                close(pipes[k][0]);
+                if (k != j)
                 {
-                    close(piped[j][1]);
+                    close(pipes[k][1]);
                 }
             }
-            
-            /* Compito semplificato senza nipoti */
-            lenght = 3000 + i;
 
-            write(piped[i][1], &lenght, sizeof(lenght));
+            /* Inizializzo lunghezza con 3000 + j */
+            lunghezza = 3000 + j;
 
+            /* Comunico al padre lunghezza */
+            write(pipes[j][1], &lunghezza, sizeof(lunghezza));
+
+            /* Esco con 0 */
             exit(0);
         }
     }
-    
+
     /* Processo padre */
-    /* Chiudo tutte le pipe in scrittura */
-    for (i = 0; i < N; i++)
+    /* Chiudo tutte le pipes in scrittura */
+    for (j = 0; j < M; j++)
     {
-        close(piped[i][1]);
+        close(pipes[j][1]);
     }
 
-    /* Recupero le informazioni dalle pipe nel lato di lettura e stampo su standard output */
-    for (i = N - 1; i >= 0; i--)
+    /* Il padre recupera le informazioni dai figli */
+    for (j = 0; j < M; j++)
     {
-        read(piped[i][0], &lenght, sizeof(lenght));
-        printf("Il figlio di indice %d ha comunicato il valore %d\n", i, lenght);
+        read(pipes[j][0], &lunghezza, sizeof(lunghezza));
+        printf("Il processo figlio di indice %d ha comunicato il valore %d per il file %s\n", j, lunghezza, argv[j + 1]);
     }
-
-    /* Ciclo che aspetta i processi figli */
-    for (i = 0; i < N; i++)
+    
+    /* Il padre aspetta i figli */
+    for (j = 0; j < M; j++)
     {
-        if((pidFiglio = wait(&status)) < 0) /* Controllo che la wait abbia successo */
+        /* Controllo che la wait vada a buon fine */
+        if ((pidFiglio = wait(&status)) < 0)
         {
             printf("Errore nella wait\n");
             exit(5);
         }
-        else if ((status & 0xFF) != 0)
+        if ((status & 0xFF) != 0)
         {
-            printf("Processo figlio con PID: %d terminato in modo anomalo\n", pidFiglio);
+            printf("Processo figlio con PID: %d ritornato in modo anomalo\n", pidFiglio);
         }
         else
         {
             ritorno = (int)((status >> 8) & 0xFF);
-            printf("Processo figlio con PID: %d terminato con valore %d (se 255 problemi!)\n", pidFiglio, ritorno);
+            printf("Il processo figlio con PID: %d ha ritornato %d (se 255 problemi!)\n", pidFiglio, ritorno);
         }
     }
     

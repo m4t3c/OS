@@ -1,20 +1,22 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 
-typedef int pipe_t[2]; /* Struct di due interi per le pipe */
+/* Definisco il tipo pipe_t come array di 2 interi */
+typedef int pipe_t[2];
 
-/* Variabili globali */
+/* VARIABILI GLOBALI */
 
-int *finito; /* array dinamico che sta ad indicare se i figli sono terminati */
-int N;       /* Numero di processi figli */
+int *finito; /* array dinamico per indicare i figli che sono terminati */
+
+int N; /* Numero di file passati come primo parametro */
 
 int finitof()
 {
-    /* questa funzione verifica i valori memorizzati nell'array finito: appena trova un elemento uguale a 0 vuole dire che non tutti i processi figli sono finiti e quindi torna 0; tornera' 1 se e solo se tutti gli elementi dell'array sono a 1 e quindi tutti i processi sono finiti */
+    /* questa funzione verifica i valori memorizzati nell'array finito: appena trova un elemento uguale a 0 vuole dire che non tutti i processi figli sono finiti e quindi torna 0; tornera' 1 se e solo se tutti gli elementi dell'array sono a 1 e quindi tutti i processi figli sono finiti */
     int i;
     for (i = 0; i < N; i++)
         if (!finito[i])
@@ -25,84 +27,87 @@ int finitof()
 
 int main(int argc, char **argv)
 {
-    /*------ Variabili locali ------*/
+
+    /* ------ Variabili Locali ------ */
+    char CZ;                        /* Carattere passato come primo parametro */
     int pid;                        /* Per fork */
-    char Cx;                        /* Carattere da cercare nei file */
-    pipe_t *pipe_pf;                /* Array di pipe di comunicazione tra padre e figlio */
-    pipe_t *pipe_fp;                /* Array di pipe di comunicazione tra figlio e padre */
+    int fd;                         /* Per open */
+    pipe_t *pipes_pf;               /* Array di pipe tra padre e figlio */
+    pipe_t *pipes_fp;               /* Array di pipe tra figlio e padre */
     int i, j;                       /* Indici per i cicli */
-    int fd;                         /* Per la open del i-esimo file */
-    long int posizione;             /* Variabile che comunica al padre la posizione del carattere */
-    long int posizioneMax;          /* usata dal padre per calcolare il minimo */
-    int occorrenze;                 /* Variabile che conta il numero di occorrenze del carattere nel file */
-    char c;                         /* Buffer della read */
-    int nw, nr;                     /* Per write e read */
-    int indice;                     /* Variabile per tenere traccia del figlio di cui e' stato calcolato il massimo nel padre */
-    char chControllo;               /* Variabile che contiene il segnale da parte del padre se bisogna scrivere o meno*/
-    int pidFiglio, ritorno, status; /* Per wait */
-    /*-------------------------------*/
-    
+    int nr, nw;                     /* Variabili di controllo per read e write */
+    int occ;                        /* Numero di occorrenze del carattere Cz */
+    int index;                      /* Indice del processo filgio che ha inviato la posizione massima */
+    char c, chControllo;            /* Carattere letto e carattere inviato dal padre per indicare al figlio di stampare o meno */
+    long int pos;                   /* Posizione del carattere Cz */
+    long int pos_max;               /* Posizione massima trovata */
+    int ritorno, pidFiglio, status; /* Per wait */
+    /* ------------------------------ */
+
     /* Controllo che siano passati almeno 3 parametri */
     if (argc < 4)
     {
-        printf("Errore nel numero di parametri: ho bisogno di almeno 3 parametri (carattere, N nomi file) ma argc = %d\n", argc);
+        printf("Errore nel numero dei parametri: ho bisogno di almeno 3 parametri ma argc = %d\n", argc);
         exit(1);
     }
-
+    
     /* Controllo che il primo parametro sia un singolo carattere */
     if ((strlen(argv[1])) != 1)
     {
-        printf("Errore nel passaggio dei parametri: %s non e' un singolo carattere\n", argv[1]);
+        printf("Errore nel passaggio dei parametri: %s non è un singolo carattere\n", argv[1]);
         exit(2);
     }
+    
+    /* Inizializzo CZ con il primo parametro */
+    CZ = argv[1][0];
 
-    Cx = argv[1][0];
+    /* Inizializzo N con il restante numero di parametri passati */
     N = argc - 2;
 
-    /* Alloco memoria per l'array finito */
-    finito = (int *)malloc(N * sizeof(int));
-    /* Controllo che l'allocazione sia andata a buon fine */
-    if (finito == NULL)
+    /* Alloco memoria per gli array di pipe */
+    pipes_pf = (pipe_t *)malloc(N * sizeof(pipe_t));
+    pipes_fp = (pipe_t *)malloc(N * sizeof(pipe_t));
+
+    /* Controllo che la malloc sia andata a buon fine */
+    if ((pipes_pf == NULL) || (pipes_fp == NULL))
     {
-        printf("Errore nella malloc\n");
+        printf("Errore nella malloc per gli array di pipe\n");
         exit(3);
     }
 
-    /* Setto l'array a 0 */
-    memset(finito, 0, N * sizeof(int));
 
-    /* Alloco memoria per N pipe */
-    pipe_pf = (pipe_t *)malloc(N * sizeof(pipe_t));
-    pipe_fp = (pipe_t *)malloc(N * sizeof(pipe_t));
-
-    /* Controllo che la malloc abbia avuto successo per le pipe */
-    if ((pipe_pf == NULL) || (pipe_fp == NULL))
-    {
-        printf("Errore nella malloc\n");
-        exit(4);
-    }
-
-    /* Inizializzo le N pipe */
+    /* Creo le N pipe */
     for (i = 0; i < N; i++)
     {
-        /* Controllo che le creazioni delle pipe vadano a buon fine */
-        if ((pipe(pipe_fp[i])) < 0)
+        if (pipe(pipes_pf[i]) < 0)
         {
-            printf("Errore nella creazione della pipe di comunicazione tra figlio e padre di indice i = %d\n", i);
+            printf("Errore nella creazione della pipe tra padre e figlio di indice i = %d\n", i);
+            exit(4);
+        }
+        
+        if (pipe(pipes_fp[i]) < 0)
+        {
+            printf("Errore nella creazione della pipe tra figlio e padre di indice i = %d\n", i);
             exit(5);
         }
-
-        if (pipe(pipe_pf[i]) < 0)
-        {
-            printf("Errore nella creazione della pipe di comunicazione tra padre e figlio di indice i = %d\n", i);
-            exit(6);
-        }
+        
     }
 
+    /* Alloco memoria per l'array finito */
+    finito = (int *)malloc(N * sizeof(int));
+    if (finito == NULL)
+    {
+        printf("Errore nella malloc dell'array finito\n");
+        exit(6);
+    }
+
+    /* Inizializzo l'array a 0 */
+    memset(finito, 0, N * sizeof(int));
+    
     /* Creo gli N processi figli */
     for (i = 0; i < N; i++)
     {
-        /* Controllo che la creazione dell'i-esimo processo figlio abbia successo */
+        /* Controllo che la fork vada a buon fine */
         if ((pid = fork()) < 0)
         {
             printf("Errore nella creazione del processo figlio di indice i = %d\n", i);
@@ -111,89 +116,106 @@ int main(int argc, char **argv)
         if (pid == 0)
         {
             /* Processo figlio */
-            /* Chiudo tutti i lati delle pipe che non mi servono */
+            /* Chiudo le pipe non necessarie */
             for (j = 0; j < N; j++)
             {
-                close(pipe_fp[j][0]);
-                close(pipe_pf[j][1]);
-                if (i != j)
+                close(pipes_fp[j][0]);
+                close(pipes_pf[j][1]);
+                if (j != i)
                 {
-                    close(pipe_fp[j][1]);
-                    close(pipe_pf[j][0]);
+                    close(pipes_pf[j][0]);
+                    close(pipes_fp[j][1]);
                 }
+                
             }
-            /* Apriamo il file associato al processo figlio */
+            
+            /* Apro il file associato in lettura */
             if ((fd = open(argv[i + 2], O_RDONLY)) < 0)
             {
-                printf("Errore nell'apertura del file %s\n", argv[i + 2]);
+                printf("Errore nella open del file %s\n", argv[i + 2]);
                 exit(-1);
             }
 
-            /* Inizializzo le variabili posizione e occorrenze */
-            posizione = 0L;
-            occorrenze = 0;
-            /* Itero un ciclo finchè leggo caratteri dal file */
+            /* Inizializzo j e occ a 0 */
+            j = 0;
+            occ = 0L;
+
+            /* Itero un ciclo che legge un carattere alla volta dal file */
             while (read(fd, &c, 1))
             {
-                if (c == Cx)
+                /* Controllo se il carattere letto è quello cercato */
+                if (c == CZ)
                 {
-                    occorrenze++;
-                    nw = write(pipe_fp[i][1], &posizione, sizeof(posizione));
-                    if (nw != sizeof(posizione))
+                    /* Incremento il numero di occorrenze trovate */
+                    occ++;
+
+                    /* Invio la posizione al padre */
+                    nw = write(pipes_fp[i][1], &pos, sizeof(pos));
+                    if (nw != sizeof(pos))
                     {
-                        printf("Errore nella write sulla pipe figlio padre del processo di indice %d\n", i);
+                        printf("Errore: processo figlio di indice i = %d ha scritto un numero errato di byte %d\n", i, nw);
                         exit(-1);
                     }
-
-                    /* Leggo dal padre se bisogna scrivere o meno */
-                    nr = read(pipe_pf[i][0], &chControllo, 1);
+                    /* Aspetto il segnale dal padre */
+                    nr = read(pipes_pf[i][0], &chControllo, 1);
                     if (nr != 1)
                     {
-                        printf("Errore nella read sulla pipe padre figlio del processo di indice i = %d\n", i);
+                        printf("Errore: processo figlio di indice i = %d ha letto un numero errato di byte %d\n", i, nr);
                         exit(-1);
                     }
-
+                    
+                    /* Controllo se il carattee inviato dal padre è S, nel caso stampo, in caso sia N non stampo */
                     if (chControllo == 'S')
                     {
-                        printf("Il figlio di indice %d e pid %d ha trovato un'occorrenza del carattere '%c' nel file %s in poszione %ld\n", i, getpid(), Cx, argv[i + 2], posizione);
+                        printf("Il carattere %c è stato trovato dal processo figlio di indice i = %d e PID: %d in posizione %ld nel file %s\n", CZ, i, getpid(), pos, argv[i + 2]);
                     }
+                    
                 }
-                posizione++;
+                else
+                {
+                    pos++;
+                }
             }
-            exit(occorrenze);
+            
+            exit(occ);
         }
+        
     }
-
+    
     /* Processo padre */
-    /* Chiudo le pipe di cui non ho bisogno */
+    /* Chiudo le pipe non necessarie */
     for (i = 0; i < N; i++)
     {
-        close(pipe_fp[i][1]);
-        close(pipe_pf[i][0]);
+        close(pipes_pf[i][0]);
+        close(pipes_fp[i][1]);
     }
-
+    
+    /* Il padre itera un ciclo che termina quando tutti i processi figli sono terminati */
     while (!finitof())
     {
-        posizioneMax = -1L;
+        /* Inizializzo pos_max a -1 */
+        pos_max = -1;
+
+        /* Itero un ciclo che recupera le informazioni da tutti i processi figli */
         for (i = 0; i < N; i++)
         {
-            /* Inizializzo finito[i] a 0 se abbiamo letto dei caratteri a 1 se non sono stati letti dei caratteri */
-            finito[i] = (read(pipe_fp[i][0], &posizione, sizeof(posizione)) != sizeof(posizione));
+            /* Finito prenderà il valore 1 se non si è letto il numero corretto di bytes */
+            finito[i] = (read(pipes_fp[i][0], &pos, sizeof(pos)) != sizeof(pos));
 
-            if (!finito[i])
+            /* Controllo se la poszione massima è minore di quella letta */
+            if (pos > pos_max)
             {
-                if (posizione > posizioneMax)
-                {
-                    posizioneMax = posizione;
-                    indice = i;
-                }
+                /* Aggiorno le variabili index e pos_max */
+                pos_max = pos;
+                index = i;
             }
+            
         }
-
-        /* Al figlio in cui abbiamo trovato il massimo diciamo di stampare sennò diciamo di non stampare */
+        
+        /* Invio ai processi figli l'indicazione di stampare o meno le informazioni su standard output */
         for (i = 0; i < N; i++)
         {
-            if (indice == i)
+            if (i == index)
             {
                 chControllo = 'S';
             }
@@ -201,20 +223,21 @@ int main(int argc, char **argv)
             {
                 chControllo = 'N';
             }
-
-            /* Scrivo solo ai figli non finiti */
             if (!finito[i])
             {
-                nw = write(pipe_pf[i][1], &chControllo, 1);
+                nw = write(pipes_pf[i][1], &chControllo, 1);
                 if (nw != 1)
                 {
-                    printf("Errore nella write nel processo padre per il processo figlio i = %d\n", i);
+                    printf("Processo padre ha scritto un numero errato di byte al figlio di indice i = %d\n", i);
                 }
+
             }
+            
         }
+        
     }
 
-    /* Attesa della terminazione dei figli */
+    /* Il padre aspetta i figli */
     for (i = 0; i < N; i++)
     {
         if ((pidFiglio = wait(&status)) < 0)
@@ -224,13 +247,14 @@ int main(int argc, char **argv)
         }
         if ((status & 0xFF) != 0)
         {
-            printf("Il processo figlio con PID: %d e' terminato in modo anomalo\n", pidFiglio);
+            printf("Processo figlio con PID: %d è terminato in modo anomalo\n", pidFiglio);
         }
         else
         {
             ritorno = (int)((status >> 8) & 0xFF);
-            printf("Il processo figlio con PID: %d e' ritornato %d (se 255 problemi)\n", pidFiglio, ritorno);
+            printf("Il processo figlio con PID: %d ha ritornato %d (se 255 problemi!)\n", pidFiglio, ritorno);
         }
     }
+    
     exit(0);
 }
